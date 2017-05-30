@@ -128,12 +128,10 @@ def code_sfu_recipsqrt_1(asm):
     nop()
     nop()
     # 1
-    fmul(r1, r4, 0.5)
-    fsub(r1, 0.0, r1).fmul(r0, r0, r4)
-    fmul(r0, r0, r4)
-    fsub(r0, r0, 2.0)
-    fadd(r1, r1, r4).fmul(r0, r0, r1)
-    fadd(vpm, r0, r1)
+    mov(r2, 1.0).fmul(r1, r4, r4)
+    fadd(r2, r2, 2.0).fmul(r1, r1, r0)
+    fsub(r1, r2, r1).fmul(r2, r4, 0.5)
+    fmul(vpm, r1, r2)
 
 @qpu
 def code_sfu_recipsqrt_2(asm):
@@ -142,19 +140,15 @@ def code_sfu_recipsqrt_2(asm):
     nop()
     nop()
     # 1
-    fmul(r1, r4, 0.5)
-    fsub(r1, 0.0, r1).fmul(r2, r0, r4)
-    fmul(r2, r2, r4)
-    fsub(r2, r2, 2.0)
-    fadd(r1, r1, r4).fmul(r2, r2, r1)
-    fadd(r3, r2, r1)
+    mov(r2, 1.0).fmul(r1, r4, r4)
+    fadd(r2, r2, 2.0).fmul(r1, r1, r0)
+    fsub(r1, r2, r1).fmul(r2, r4, 0.5)
+    fmul(r3, r1, r2)
     # 2
-    fmul(r1, r3, 0.5)
-    fsub(r1, 0.0, r1).fmul(r2, r0, r3)
-    fmul(r2, r2, r3)
-    fsub(r2, r2, 2.0)
-    fadd(r1, r1, r3).fmul(r2, r2, r1)
-    fadd(vpm, r2, r1)
+    mov(r2, 1.0).fmul(r1, r3, r3)
+    fadd(r2, r2, 2.0).fmul(r1, r1, r0)
+    fsub(r1, r2, r1).fmul(r2, r3, 0.5)
+    fmul(vpm, r1, r2)
 
 @qpu
 def code_sfu_recipsqrt_3(asm):
@@ -163,26 +157,20 @@ def code_sfu_recipsqrt_3(asm):
     nop()
     nop()
     # 1
-    fmul(r1, r4, 0.5)
-    fsub(r1, 0.0, r1).fmul(r2, r0, r4)
-    fmul(r2, r2, r4)
-    fsub(r2, r2, 2.0)
-    fadd(r1, r1, r4).fmul(r2, r2, r1)
-    fadd(r3, r2, r1)
+    mov(r2, 1.0).fmul(r1, r4, r4)
+    fadd(r2, r2, 2.0).fmul(r1, r1, r0)
+    fsub(r1, r2, r1).fmul(r2, r4, 0.5)
+    fmul(r3, r1, r2)
     # 2
-    fmul(r1, r3, 0.5)
-    fsub(r1, 0.0, r1).fmul(r2, r0, r3)
-    fmul(r2, r2, r3)
-    fsub(r2, r2, 2.0)
-    fadd(r1, r1, r3).fmul(r2, r2, r1)
-    fadd(r3, r2, r1)
+    mov(r2, 1.0).fmul(r1, r3, r3)
+    fadd(r2, r2, 2.0).fmul(r1, r1, r0)
+    fsub(r1, r2, r1).fmul(r2, r3, 0.5)
+    fmul(r3, r1, r2)
     # 3
-    fmul(r1, r3, 0.5)
-    fsub(r1, 0.0, r1).fmul(r2, r0, r3)
-    fmul(r2, r2, r3)
-    fsub(r2, r2, 2.0)
-    fadd(r1, r1, r3).fmul(r2, r2, r1)
-    fadd(vpm, r2, r1)
+    mov(r2, 1.0).fmul(r1, r3, r3)
+    fadd(r2, r2, 2.0).fmul(r1, r1, r0)
+    fsub(r1, r2, r1).fmul(r2, r3, 0.5)
+    fmul(vpm, r1, r2)
 
 def do_recipsqrt(xf):
     print('# recipsqrt')
