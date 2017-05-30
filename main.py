@@ -59,6 +59,7 @@ def code_sfu_recip_1(asm):
     mov(sfu_recip, r0)
     nop()
     nop()
+    # 1
     fmul(r0, r0, r4)
     fsub(r0, 2.0, r0)
     fmul(vpm, r4, r0)
@@ -112,6 +113,93 @@ def do_recip(xf):
     print_float_as_uint('output 3:  ', yf3)
     print_float_as_uint('output ref:', yf_ref)
 
+@qpu
+def code_sfu_recipsqrt_0(asm):
+    mov(r0, vpm)
+    mov(sfu_recipsqrt, r0)
+    nop()
+    nop()
+    mov(vpm, r4)
+
+@qpu
+def code_sfu_recipsqrt_1(asm):
+    mov(r0, vpm)
+    mov(sfu_recipsqrt, r0)
+    nop()
+    nop()
+    # 1
+    fmul(r1, r4, 0.5)
+    fsub(r1, 0.0, r1).fmul(r0, r0, r4)
+    fmul(r0, r0, r4)
+    fsub(r0, r0, 2.0)
+    fadd(r1, r1, r4).fmul(r0, r0, r1)
+    fadd(vpm, r0, r1)
+
+@qpu
+def code_sfu_recipsqrt_2(asm):
+    mov(r0, vpm)
+    mov(sfu_recipsqrt, r0)
+    nop()
+    nop()
+    # 1
+    fmul(r1, r4, 0.5)
+    fsub(r1, 0.0, r1).fmul(r2, r0, r4)
+    fmul(r2, r2, r4)
+    fsub(r2, r2, 2.0)
+    fadd(r1, r1, r4).fmul(r2, r2, r1)
+    fadd(r3, r2, r1)
+    # 2
+    fmul(r1, r3, 0.5)
+    fsub(r1, 0.0, r1).fmul(r2, r0, r3)
+    fmul(r2, r2, r3)
+    fsub(r2, r2, 2.0)
+    fadd(r1, r1, r3).fmul(r2, r2, r1)
+    fadd(vpm, r2, r1)
+
+@qpu
+def code_sfu_recipsqrt_3(asm):
+    mov(r0, vpm)
+    mov(sfu_recipsqrt, r0)
+    nop()
+    nop()
+    # 1
+    fmul(r1, r4, 0.5)
+    fsub(r1, 0.0, r1).fmul(r2, r0, r4)
+    fmul(r2, r2, r4)
+    fsub(r2, r2, 2.0)
+    fadd(r1, r1, r4).fmul(r2, r2, r1)
+    fadd(r3, r2, r1)
+    # 2
+    fmul(r1, r3, 0.5)
+    fsub(r1, 0.0, r1).fmul(r2, r0, r3)
+    fmul(r2, r2, r3)
+    fsub(r2, r2, 2.0)
+    fadd(r1, r1, r3).fmul(r2, r2, r1)
+    fadd(r3, r2, r1)
+    # 3
+    fmul(r1, r3, 0.5)
+    fsub(r1, 0.0, r1).fmul(r2, r0, r3)
+    fmul(r2, r2, r3)
+    fsub(r2, r2, 2.0)
+    fadd(r1, r1, r3).fmul(r2, r2, r1)
+    fadd(vpm, r2, r1)
+
+def do_recipsqrt(xf):
+    print('# recipsqrt')
+
+    yf0 = run_code(code_sfu_recipsqrt_0, xf)
+    yf1 = run_code(code_sfu_recipsqrt_1, xf)
+    yf2 = run_code(code_sfu_recipsqrt_2, xf)
+    yf3 = run_code(code_sfu_recipsqrt_3, xf)
+    yf_ref = map(lambda x: np.float32(1.0)
+                           / np.sqrt(np.float32(x), dtype = np.float32), xf)
+
+    print_float_as_uint('output 0:  ', yf0)
+    print_float_as_uint('output 1:  ', yf1)
+    print_float_as_uint('output 2:  ', yf2)
+    print_float_as_uint('output 3:  ', yf3)
+    print_float_as_uint('output ref:', yf_ref)
+
 def main():
     xi = np.random.uniform(1 << 23, (255 << 23), 16).astype(np.uint32)
     xf = list(map(uint_as_float, xi))
@@ -121,6 +209,8 @@ def main():
 
     do_recip(xf)
     print()
+
+    do_recipsqrt(xf)
 
 if __name__ == '__main__':
     main()
