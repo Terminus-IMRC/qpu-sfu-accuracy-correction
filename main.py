@@ -30,7 +30,7 @@ def boilerplate(asm, f):
     exit()
 
 @qpu
-def code_sfu_recip(asm):
+def code_sfu_recip_0(asm):
     mov(r0, vpm)
     mov(sfu_recip, r0)
     nop()
@@ -91,12 +91,12 @@ def run_code(code, X):
                 uniforms = [X.address, Y.address])
         return np.copy(Y)
 
-def main():
-    xi = np.random.uniform(1 << 23,
-                           (255 << 23), 16).astype(np.uint32)
+def do_recip():
+    print('# recip')
+    xi = np.random.uniform(1 << 23, (255 << 23), 16).astype(np.uint32)
     xf = list(map(uint_as_float, xi))
-    yf = run_code(code_sfu_recip, xf)
-    yi = list(map(float_as_uint, yf))
+    yf0 = run_code(code_sfu_recip_0, xf)
+    yi0 = list(map(float_as_uint, yf))
     yf1 = run_code(code_sfu_recip_1, xf)
     yi1 = list(map(float_as_uint, yf1))
     yf2 = run_code(code_sfu_recip_2, xf)
@@ -107,7 +107,7 @@ def main():
     yi_ref = list(map(float_as_uint, yf_ref))
     print("input aslist(map(uint_as_hexstr, xi)))
     print(list(map(lambda x: "%.4e" % x, xf)))
-    print(list(map(uint_as_hexstr, yi)))
+    print(list(map(uint_as_hexstr, yi0)))
     print(list(map(uint_as_hexstr, yi1)))
     print(list(map(uint_as_hexstr, yi2)))
     print(list(map(uint_as_hexstr, yi3)))
