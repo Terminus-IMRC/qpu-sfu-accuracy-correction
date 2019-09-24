@@ -1,204 +1,134 @@
 #!/usr/bin/env python3
 
+import sys
 import struct
 import numpy as np
 from videocore.assembler import qpu
 from videocore.driver import Driver
 
-def run_code(code, X):
+def run_code(code, X, n):
     with Driver() as drv:
-        X = drv.copy(np.array(X, dtype = 'float32'))
-        Y = drv.alloc((16), dtype = 'float32')
+        X = drv.copy(np.array(X, dtype = np.float32))
+        Y = drv.alloc((n, 16), dtype = np.float32)
         drv.execute(
                 n_threads = 1,
-                program = drv.program(boilerplate, code),
-                uniforms = [X.address, Y.address])
+                program = drv.program(boilerplate, code, n),
+                uniforms = [X.address, Y.address],
+                timeout = 5)
         return np.copy(Y)
 
 def float_as_uint(f):
-    return struct.unpack('!I', struct.pack('!f', f))[0]
+    return np.vectorize(
+            lambda x: struct.unpack('!I', struct.pack('!f', x))[0])(f)
 
 def uint_as_float(i):
-    return struct.unpack('!f', struct.pack('!I', i))[0]
+    return np.vectorize(
+            lambda x: struct.unpack('!f', struct.pack('!I', x))[0])(i)
 
-def print_uint(prefix, v):
-    print(prefix, list(map(lambda x: "%08x" % x, v)))
+def pretty_uint(v):
+    return ' '.join([f'{x:08x}' for x in v])
 
-def print_float(prefix, v):
-    print(prefix, list(map(lambda x: "%.4e" % x, v)))
-
-def print_float_as_uint(prefix, v):
-    print_uint(prefix, list(map(float_as_uint, v)))
+def pretty_float(v):
+    return ' '.join([f'{x:.2e}' for x in v])
 
 @qpu
-def boilerplate(asm, f):
+def boilerplate(asm, f, n):
     setup_dma_load(nrows = 1)
     start_dma_load(uniform)
     wait_dma_load()
     setup_vpm_read(nrows = 1)
     setup_vpm_write()
 
-    f(asm)
+    f(asm, n)
 
-    setup_dma_store(nrows = 1)
+    setup_dma_store(nrows = n)
     start_dma_store(uniform)
     wait_dma_store()
     exit()
 
 @qpu
-def code_sfu_recip_0(asm):
+def code_sfu_recip(asm, n):
     mov(r0, vpm)
     mov(sfu_recip, r0)
     nop()
     nop()
-    mov(vpm, r4)
+    mov(r1, r4).mov(vpm, r4)
+    # r0 = a, r1 = x_n
+    for i in range(n):
+        fmul(r2, r0, r1)
+        fsub(r2, 2.0, r2)
+        fmul(r1, r1, r2)
+        mov(vpm, r1)
 
 @qpu
-def code_sfu_recip_1(asm):
+def code_sfu_recip_improved(asm, n):
     mov(r0, vpm)
     mov(sfu_recip, r0)
     nop()
     nop()
-    # 1
-    fmul(r0, r0, r4)
-    fsub(r0, 2.0, r0)
-    fmul(vpm, r4, r0)
+    mov(r1, r4).mov(vpm, r4)
+    # r0 = a, r1 = x_n
+    for i in range(n):
+        fmul(r2, r0, r1)
+        fsub(r2, 1.0, r2)
+        fmul(r2, r1, r2)
+        fadd(r1, r1, r2)
+        mov(vpm, r1)
 
 @qpu
-def code_sfu_recip_2(asm):
-    mov(r0, vpm)
-    mov(sfu_recip, r0)
-    nop()
-    nop()
-    # 1
-    fmul(r1, r0, r4)
-    fsub(r1, 2.0, r1)
-    fmul(r1, r4, r1)
-    # 2
-    fmul(r2, r0, r1)
-    fsub(r2, 2.0, r2)
-    fmul(vpm, r1, r2)
-
-@qpu
-def code_sfu_recip_3(asm):
-    mov(r0, vpm)
-    mov(sfu_recip, r0)
-    nop()
-    nop()
-    # 1
-    fmul(r1, r0, r4)
-    fsub(r1, 2.0, r1)
-    fmul(r1, r4, r1)
-    # 2
-    fmul(r2, r0, r1)
-    fsub(r2, 2.0, r2)
-    fmul(r1, r1, r2)
-    # 3
-    fmul(r2, r0, r1)
-    fsub(r2, 2.0, r2)
-    fmul(vpm, r1, r2)
-
-def do_recip(xf):
-    print('# recip')
-
-    yf0 = run_code(code_sfu_recip_0, xf)
-    yf1 = run_code(code_sfu_recip_1, xf)
-    yf2 = run_code(code_sfu_recip_2, xf)
-    yf3 = run_code(code_sfu_recip_3, xf)
-    yf_ref = map(lambda x: np.float32(1.0) / np.float32(x), xf)
-
-    print_float_as_uint('output 0:  ', yf0)
-    print_float_as_uint('output 1:  ', yf1)
-    print_float_as_uint('output 2:  ', yf2)
-    print_float_as_uint('output 3:  ', yf3)
-    print_float_as_uint('output ref:', yf_ref)
-
-@qpu
-def code_sfu_recipsqrt_0(asm):
+def code_sfu_recipsqrt(asm, n):
     mov(r0, vpm)
     mov(sfu_recipsqrt, r0)
     nop()
     nop()
-    mov(vpm, r4)
+    mov(r1, r4).mov(vpm, r4)
+    # r0 = a, r1 = x_n
+    for i in range(n):
+        mov(r2, 1.0).fmul(r3, r1, r1)
+        fadd(r2, r2, 2.0).fmul(r3, r0, r3)
+        fsub(r2, r2, r3).fmul(r3, r1, 0.5)
+        fmul(r1, r2, r3)
+        mov(vpm, r1)
 
 @qpu
-def code_sfu_recipsqrt_1(asm):
+def code_sfu_recipsqrt_improved(asm, n):
     mov(r0, vpm)
     mov(sfu_recipsqrt, r0)
     nop()
     nop()
-    # 1
-    mov(r2, 1.0).fmul(r1, r4, r4)
-    fadd(r2, r2, 2.0).fmul(r1, r1, r0)
-    fsub(r1, r2, r1).fmul(r2, r4, 0.5)
-    fmul(vpm, r1, r2)
+    mov(r1, r4).mov(vpm, r4)
+    # r0 = a, r1 = x_n
+    for i in range(n):
+        fmul(r2, r1, r1)
+        mov(r3, 0.5).fmul(r2, r0, r2)
+        fsub(r2, 1.0, r2).fmul(r3, r1, r3)
+        fmul(r2, r2, r3)
+        fadd(r1, r1, r2)
+        mov(vpm, r1)
 
-@qpu
-def code_sfu_recipsqrt_2(asm):
-    mov(r0, vpm)
-    mov(sfu_recipsqrt, r0)
-    nop()
-    nop()
-    # 1
-    mov(r2, 1.0).fmul(r1, r4, r4)
-    fadd(r2, r2, 2.0).fmul(r1, r1, r0)
-    fsub(r1, r2, r1).fmul(r2, r4, 0.5)
-    fmul(r3, r1, r2)
-    # 2
-    mov(r2, 1.0).fmul(r1, r3, r3)
-    fadd(r2, r2, 2.0).fmul(r1, r1, r0)
-    fsub(r1, r2, r1).fmul(r2, r3, 0.5)
-    fmul(vpm, r1, r2)
+def do_code_sfu(code_sfu, cpu_func, xf, n):
+    print()
+    print(f'# {code_sfu.__name__}')
 
-@qpu
-def code_sfu_recipsqrt_3(asm):
-    mov(r0, vpm)
-    mov(sfu_recipsqrt, r0)
-    nop()
-    nop()
-    # 1
-    mov(r2, 1.0).fmul(r1, r4, r4)
-    fadd(r2, r2, 2.0).fmul(r1, r1, r0)
-    fsub(r1, r2, r1).fmul(r2, r4, 0.5)
-    fmul(r3, r1, r2)
-    # 2
-    mov(r2, 1.0).fmul(r1, r3, r3)
-    fadd(r2, r2, 2.0).fmul(r1, r1, r0)
-    fsub(r1, r2, r1).fmul(r2, r3, 0.5)
-    fmul(r3, r1, r2)
-    # 3
-    mov(r2, 1.0).fmul(r1, r3, r3)
-    fadd(r2, r2, 2.0).fmul(r1, r1, r0)
-    fsub(r1, r2, r1).fmul(r2, r3, 0.5)
-    fmul(vpm, r1, r2)
+    yf = run_code(code_sfu, xf, n)
 
-def do_recipsqrt(xf):
-    print('# recipsqrt')
+    for i in range(n):
+        print(f'output {i}:  ', pretty_uint(float_as_uint(yf[i])))
 
-    yf0 = run_code(code_sfu_recipsqrt_0, xf)
-    yf1 = run_code(code_sfu_recipsqrt_1, xf)
-    yf2 = run_code(code_sfu_recipsqrt_2, xf)
-    yf3 = run_code(code_sfu_recipsqrt_3, xf)
-    yf_ref = map(lambda x: np.float32(1.0)
-                           / np.sqrt(np.float32(x), dtype = np.float32), xf)
-
-    print_float_as_uint('output 0:  ', yf0)
-    print_float_as_uint('output 1:  ', yf1)
-    print_float_as_uint('output 2:  ', yf2)
-    print_float_as_uint('output 3:  ', yf3)
-    print_float_as_uint('output ref:', yf_ref)
+    print('output ref:', pretty_uint(float_as_uint(cpu_func(xf))))
 
 def main():
+    np.random.seed(int(sys.argv[1]))
     xi = np.random.uniform(1 << 23, (255 << 23), 16).astype(np.uint32)
-    xf = list(map(uint_as_float, xi))
-    print_uint('input:', xi)
-    print_float('input as float:', xf)
-    print()
+    xf = uint_as_float(xi)
+    print('input:     ', pretty_float(xf))
+    print('input:     ', pretty_uint(xi))
 
-    do_recip(xf)
-    print()
+    for code_sfu in code_sfu_recip, code_sfu_recip_improved:
+        do_code_sfu(code_sfu, np.reciprocal, xf, 5)
 
-    do_recipsqrt(xf)
+    for code_sfu in code_sfu_recipsqrt, code_sfu_recipsqrt_improved:
+        do_code_sfu(code_sfu, lambda x: np.reciprocal(np.sqrt(x)), xf, 5)
 
 if __name__ == '__main__':
     main()
